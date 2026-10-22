@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: payment-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+#      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      # All Payment Service instances share this group id, so Kafka splits partitions between them.
+      group-id: payment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.example.payments.events.OrderCreatedEvent
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: com.example.payments.events
+
+app:
+  topics:
+    order-created: orders.created
+    payment-processed: payments.processed
+  payment:
+    failure-rate: 0.4          # 10% of payments fail at random
+    processing-delay-ms: 500   # pretend to talk to a payment provider
