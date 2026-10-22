@@ -28,5 +28,5 @@ app:
     order-created: orders.created
     payment-processed: payments.processed
   payment:
-    failure-rate: 0.4          # 10% of payments fail at random
+    failure-rate: 0.1          # 10% of payments fail at random
     processing-delay-ms: 500   # pretend to talk to a payment provider
