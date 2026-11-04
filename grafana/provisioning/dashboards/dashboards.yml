@@ -1,0 +1,9 @@
+# Loads every dashboard JSON file in /var/lib/grafana/dashboards (mounted from ./grafana/dashboards).
+apiVersion: 1
+providers:
+  - name: kafka-orders
+    folder: Kafka Orders
+    type: file
+    allowUiUpdates: true   # you can edit in the UI; to keep changes, export the JSON into grafana/dashboards
+    options:
+      path: /var/lib/grafana/dashboards

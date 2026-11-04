@@ -66,6 +66,26 @@ services:
       - "CREATE KEYSPACE IF NOT EXISTS orders WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
     restart: "no"
 
+  # Cassandra UI: run CQL in Explore and see orders on a dashboard. http://localhost:3001 (no login locally).
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    ports:
+      - "3001:3000"   # 3000 is often taken by local dev servers
+    environment:
+      GF_INSTALL_PLUGINS: hadesarchitect-cassandra-datasource
+      # Local learning setup: open without logging in, as an admin. Don't do this on a shared machine.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      cassandra:
+        condition: service_healthy
+
   # One-shot job: adds 5 random users (postgres/random-users.sql) to the Postgres on your computer, but only if
   # there are none yet besides the fixed seed users. Runs on every `docker compose up` and does nothing after
   # the first time. Needs the "orders" role/database (README step 1).
@@ -97,3 +117,4 @@ services:
 
 volumes:
   cassandra-data:
+  grafana-data:

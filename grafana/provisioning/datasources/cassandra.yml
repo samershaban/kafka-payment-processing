@@ -1,0 +1,12 @@
+# Pre-configured connection from Grafana to the Cassandra container (keyspace "orders").
+apiVersion: 1
+datasources:
+  - name: Cassandra
+    uid: cassandra
+    type: hadesarchitect-cassandra-datasource
+    url: cassandra:9042
+    isDefault: true
+    editable: true
+    jsonData:
+      keyspace: orders
+      consistency: ONE

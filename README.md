@@ -62,7 +62,7 @@ Cassandra takes 30-60 seconds to start. `docker compose up -d` waits for it, the
 container creates the `orders` keyspace and exits. Check with `docker compose ps -a`: `cassandra` should be
 `healthy` and `cassandra-init` `Exited (0)`. The Order Service won't start until the keyspace exists.
 
-Kafka UI is at http://localhost:8080. Use it to look at topics, partitions and messages.
+Kafka UI is at http://localhost:8080. Use it to look at topics, partitions and messages. Grafana (Cassandra UI) is at http://localhost:3001.
 
 `docker compose up -d` also runs a one-shot `postgres-seed` container (`postgres/random-users.sql`). It adds
 **5 random users** to your local Postgres, but only if there are no users yet besides the 5 fixed seed users,
@@ -180,7 +180,24 @@ The `flyway_schema_history` table next to `users` records which migrations have 
 
 Or from a terminal: `psql -h localhost -U orders -d orders -c "SELECT * FROM users;"` (password `orders`).
 
-Cassandra (orders):
+Cassandra (orders), in **Grafana** at http://localhost:3001 (started by `docker compose up -d`, no login):
+
+- **Dashboards → Kafka Orders → Orders (Cassandra)**: order count, paid revenue, average order, orders by
+  status and by item, and a table of all orders. It refreshes every 10 seconds, so new orders from the UI show up.
+- **Explore** (compass icon), data source **Cassandra**: switch the query editor to **Raw CQL** to run your own
+  queries, e.g.
+
+  ```sql
+  SELECT id, customerid, item, status, CAST(totalprice AS double) AS total, createdat FROM orders.orders
+  ```
+
+  Two quirks of the Cassandra plugin: wrap `totalprice` in `CAST(... AS double)` (it can't read the `decimal`
+  type), and it returns one result per row, so in panels add the **Merge** transformation to get a single table.
+- The connection and dashboard are set up by files in `grafana/` (provisioning). You can edit the dashboard in the
+  UI; to keep changes after `docker compose down -v`, use **Share → Export** and save the JSON over
+  `grafana/dashboards/orders.json`.
+
+Or from a terminal:
 
 ```bash
 docker exec -it cassandra cqlsh -e "SELECT id, customerid, status, statusreason FROM orders.orders;"
