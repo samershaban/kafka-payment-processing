@@ -4,8 +4,10 @@ import com.example.orders.dto.CreateOrderRequest;
 import com.example.orders.model.Order;
 import com.example.orders.service.OrderService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.net.URI;
 import java.util.List;
@@ -36,6 +38,15 @@ public class OrderController {
             return ResponseEntity.ok(order);
         }
         return ResponseEntity.created(URI.create("/orders/" + order.getId())).body(order);
+    }
+
+    /**
+     * Live updates (Server-Sent Events): an "order" event with the order as JSON whenever an order is created or
+     * its status changes. Try it: curl -N http://localhost:8081/orders/stream
+     */
+    @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream() {
+        return orders.subscribe();
     }
 
     @GetMapping("/{id}")

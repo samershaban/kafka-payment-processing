@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ApiError, getOrder, listOrders, listUsers, type Order, type User } from './api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiError, listOrders, listUsers, subscribeToOrders, type Order, type User } from './api'
 import { OrderForm } from './components/OrderForm'
 import { OrderList } from './components/OrderList'
 
-const POLL_MS = 500
-const POLL_TIMEOUT_MS = 10_000
+/** Replace the order if it's already in the list, otherwise add it at the front. */
+function upsert(orders: Order[], order: Order): Order[] {
+  return orders.some((o) => o.id === order.id)
+    ? orders.map((o) => (o.id === order.id ? order : o))
+    : [order, ...orders]
+}
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
-  const [latest, setLatest] = useState<Order | null>(null)
-  const [timedOut, setTimedOut] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -29,6 +31,26 @@ export default function App() {
     refresh()
   }, [refresh])
 
+  // Live updates (Server-Sent Events) instead of polling: the Order Service pushes every new order and every
+  // status change (CREATED -> PAID / PAYMENT_FAILED after the Payment Service's Kafka result).
+  const [live, setLive] = useState(false)
+  const wasDisconnected = useRef(false)
+  useEffect(() => {
+    return subscribeToOrders(
+      (order) => setOrders((prev) => upsert(prev, order)),
+      (connected) => {
+        setLive(connected)
+        if (!connected) {
+          wasDisconnected.current = true
+        } else if (wasDisconnected.current) {
+          // Events sent while we were disconnected are lost, so reload the list once we're back
+          wasDisconnected.current = false
+          refresh()
+        }
+      },
+    )
+  }, [refresh])
+
   // Users: options for the form's Customer dropdown, and names for the orders table
   const [users, setUsers] = useState<User[]>([])
   const [usersError, setUsersError] = useState<string | null>(null)
@@ -42,42 +64,18 @@ export default function App() {
   }, [])
   const userNames = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
 
-  // After creating an order, poll it until the Payment Service's result arrives via Kafka.
-  const latestId = latest?.id
-  const waiting = latest?.status === 'CREATED'
-  useEffect(() => {
-    if (!latestId || !waiting) return
-    const started = Date.now()
-    const timer = setInterval(async () => {
-      if (Date.now() - started > POLL_TIMEOUT_MS) {
-        clearInterval(timer)
-        setTimedOut(true)
-        return
-      }
-      try {
-        const order = await getOrder(latestId)
-        if (order.status !== 'CREATED') {
-          clearInterval(timer)
-          setLatest(order)
-          setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)))
-        }
-      } catch {
-        // ignore one failed poll; the next tick tries again
-      }
-    }, POLL_MS)
-    return () => clearInterval(timer)
-  }, [latestId, waiting])
-
+  // Show the new order straight from the POST response; the stream sends the same order too (upsert dedupes)
   function handleCreated(order: Order) {
-    setTimedOut(false)
-    setLatest(order)
-    setOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)])
+    setOrders((prev) => upsert(prev, order))
   }
 
   return (
     <main>
-      <header>
+      <header className="page-header">
         <h1>Orders</h1>
+        <span className={`live ${live ? 'on' : 'off'}`} aria-live="polite">
+          {live ? 'Live' : 'Reconnecting…'}
+        </span>
       </header>
 
       <OrderForm users={users} usersError={usersError} onCreated={handleCreated} />

@@ -11,6 +11,7 @@ import com.example.orders.model.Order;
 import com.example.orders.repository.IdempotencyStore;
 import com.example.orders.repository.OrderRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -30,13 +31,15 @@ public class OrderService {
     private final IdempotencyStore idempotency;
     private final OrderEventPublisher publisher;
     private final UserService users;
+    private final OrderUpdates updates;
 
     public OrderService(OrderRepository orders, IdempotencyStore idempotency,
-                        OrderEventPublisher publisher, UserService users) {
+                        OrderEventPublisher publisher, UserService users, OrderUpdates updates) {
         this.orders = orders;
         this.idempotency = idempotency;
         this.publisher = publisher;
         this.users = users;
+        this.updates = updates;
     }
 
     /** The order, and whether this call created it (false = an idempotent replay of an earlier request). */
@@ -112,7 +115,9 @@ public class OrderService {
                 order.markPaymentFailed(reason);
             }
             // Cassandra has no change tracking (unlike JPA), so write the update explicitly.
-            return orders.save(order);
+            Order saved = orders.save(order);
+            updates.publish(saved);   // browsers see PAID / PAYMENT_FAILED immediately (SSE)
+            return saved;
         });
     }
 
@@ -136,7 +141,13 @@ public class OrderService {
         // the DB and Kafka disagree. That's the problem the "transactional outbox" pattern solves
         // (stage 5 of the project).
         publisher.publishOrderCreated(saved);
+        updates.publish(saved);   // browsers see the new order (status CREATED) immediately (SSE)
         return saved;
+    }
+
+    /** Server-Sent Events stream of order changes, for GET /orders/stream. */
+    public SseEmitter subscribe() {
+        return updates.subscribe();
     }
 
     private static Order newOrder(CreateOrderRequest req) {

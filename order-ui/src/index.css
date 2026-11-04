@@ -71,6 +71,34 @@ header p {
   margin: 0;
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Connection state of the live updates stream (SSE) */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.live::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-fg);
+}
+
+.live.on::before {
+  background: var(--green-fg);
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);

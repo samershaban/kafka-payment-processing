@@ -40,6 +40,7 @@ class OrderServiceTest {
     @Mock IdempotencyStore idempotency;
     @Mock OrderEventPublisher publisher;
     @Mock UserService users;
+    @Mock OrderUpdates updates;
     @InjectMocks OrderService service;
 
     private final UUID customer = UUID.randomUUID();
@@ -76,6 +77,28 @@ class OrderServiceTest {
         assertThat(result.created()).isTrue();
         verify(orders).save(result.order());
         verify(publisher).publishOrderCreated(result.order());
+        verify(updates).publish(result.order());   // pushed to browsers (SSE)
+    }
+
+    @Test
+    void paymentResult_updatesOrderAndPushesIt() {
+        Order order = new Order(customer.toString(), "Ramen", 2, new BigDecimal("24.50"));
+        when(orders.findById(order.getId())).thenReturn(Optional.of(order));
+
+        var updated = service.applyPaymentResult(order.getId(), false, "Card declined");
+
+        assertThat(updated).isPresent();
+        assertThat(order.getStatus()).hasToString("PAYMENT_FAILED");
+        assertThat(order.getStatusReason()).isEqualTo("Card declined");
+        verify(updates).publish(order);
+    }
+
+    @Test
+    void paymentResultForUnknownOrder_pushesNothing() {
+        when(orders.findById("missing")).thenReturn(Optional.empty());
+
+        assertThat(service.applyPaymentResult("missing", true, null)).isEmpty();
+        verify(updates, never()).publish(any());
     }
 
     @Test
@@ -101,6 +124,7 @@ class OrderServiceTest {
         assertThat(result.order()).isSameAs(original);
         verify(orders, never()).save(any());
         verify(publisher, never()).publishOrderCreated(any());
+        verify(updates, never()).publish(any());   // a replay is not a change
     }
 
     @Test

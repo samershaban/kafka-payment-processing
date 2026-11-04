@@ -91,3 +91,20 @@ export function listOrders(): Promise<Order[]> {
 export function listUsers(): Promise<User[]> {
   return request<User[]>('/users')
 }
+
+/**
+ * Live order updates (Server-Sent Events). Calls onOrder with the order's current state whenever an order is
+ * created or its status changes, from this browser or anywhere else (curl, Postman, another tab).
+ * The browser reconnects by itself if the connection drops; onStatus reports whether it's connected.
+ * Returns a function that closes the stream.
+ */
+export function subscribeToOrders(
+  onOrder: (order: Order) => void,
+  onStatus: (connected: boolean) => void,
+): () => void {
+  const source = new EventSource('/orders/stream')
+  source.addEventListener('order', (e) => onOrder(JSON.parse((e as MessageEvent<string>).data) as Order))
+  source.onopen = () => onStatus(true)
+  source.onerror = () => onStatus(false) // EventSource retries automatically after an error
+  return () => source.close()
+}
