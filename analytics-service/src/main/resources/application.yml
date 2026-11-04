@@ -5,8 +5,28 @@ spring:
   application:
     name: analytics-service
 
+  # Read-only access to order-service's orders (keyspace "orders"); this service never creates or changes tables.
+  cassandra:
+    contact-points: localhost:9042
+    local-datacenter: datacenter1
+    keyspace-name: orders
+    schema-action: none
+
   kafka:
     bootstrap-servers: localhost:9092
+    consumer:
+      # Own group: gets its own copy of every event, without taking them from order-service.
+      group-id: analytics-service
+      # A new group starts at the beginning of the source topics, so no event is missed.
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
 
 management:
   endpoints:
@@ -19,6 +39,9 @@ management:
 
 app:
   topics:
+    # Consumed (published by order-service and payment-service)
+    orders-created: orders.created
+    payments-processed: payments.processed
     # Published by this service (raw layer of the analytics pipeline)
     orders-raw: analytics.orders.raw
     users-raw: analytics.users.raw
