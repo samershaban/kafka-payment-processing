@@ -1,0 +1,5 @@
+# Tests must not depend on (or change) the local Kafka: don't create topics on startup.
+spring:
+  kafka:
+    admin:
+      auto-create: false

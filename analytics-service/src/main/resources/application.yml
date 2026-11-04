@@ -5,6 +5,9 @@ spring:
   application:
     name: analytics-service
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
 management:
   endpoints:
     web:
@@ -13,3 +16,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+app:
+  topics:
+    # Published by this service (raw layer of the analytics pipeline)
+    orders-raw: analytics.orders.raw
+    users-raw: analytics.users.raw
