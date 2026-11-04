@@ -222,9 +222,10 @@ containers. Users are in your local Postgres, independent of Docker.
 
 ## Analytics setup (in progress)
 
-Preparation for a real-time analytics pipeline (capture → Kafka → Flink → S3). Nothing uses these yet.
+A real-time analytics pipeline: capture → Kafka → Flink → S3. The capture part (`analytics-service`) is in place;
+Flink and the S3 layers come next.
 
-**Postgres change data capture (once).** Lets the future analytics service stream every change to `users`.
+**Postgres change data capture (once).** Lets `analytics-service` stream every change to `users`.
 Needs the `postgres` superuser password and a Postgres restart, which briefly disconnects all databases on it:
 
 ```bash
@@ -252,10 +253,35 @@ docker run --rm --network kafka-orders_default -e AWS_ACCESS_KEY_ID=lakeadmin -e
 Data is kept in the `s3-data` volume. Kafka now also keeps its data in a `kafka-data` volume, so topics and
 messages survive `docker compose down`; `docker compose down -v` deletes both.
 
+**analytics-service (port 8083).** Captures data in real time and publishes it to two Kafka topics:
+
+| Topic | Key | Contents |
+|---|---|---|
+| `analytics.orders.raw` | order id | One fact per order change: `{eventId, kind: CREATED / PAYMENT_RESULT / BACKFILL, occurredAt, order}`, built from `orders.created` / `payments.processed` plus the order row in Cassandra |
+| `analytics.users.raw` | user id | One record per change to `users` (Debezium envelope `{before, after, op, source, ts_ms}` + `eventId`), via Postgres logical replication |
+
+```bash
+cd analytics-service && mvn spring-boot:run          # or run AnalyticsServiceApplication in IntelliJ
+curl localhost:8083/admin/status                       # CDC state, records published, consumer lag
+curl -X POST localhost:8083/admin/backfill             # once: publish orders that existed before capture
+```
+
+- On its first start the service publishes every existing user (snapshot), then each change as it happens. Its
+  read position is kept in `~/.kafka-orders/analytics/debezium-offsets.dat`, so a restart resumes where it
+  stopped; delete that file to take a fresh snapshot.
+- Until the Postgres setup above has been done, user capture fails (`/actuator/health` shows `cdc` DOWN with the
+  reason); order capture keeps working.
+- The replication slot `analytics_users` makes Postgres keep WAL until the service has read it. If you stop using
+  the service for good, drop the slot so WAL doesn't pile up:
+  `psql -h localhost -U postgres -d orders -c "SELECT pg_drop_replication_slot('analytics_users')"`.
+- `eventId` is deterministic, so the same source event always gets the same id and duplicates (from redelivery,
+  restarts or a repeated backfill) can be dropped downstream.
+
 ## Tests
 
 ```bash
 cd order-service && mvn test
+cd analytics-service && mvn test
 ```
 
 Unit tests for the services (Mockito) and the users web layer (`@WebMvcTest`). They don't need Docker.
