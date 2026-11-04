@@ -20,7 +20,16 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3
+      # Default for topics created without an explicit count (e.g. auto-created). Existing topics keep theirs,
+      # and the services' TopicBuilder beans still set their own counts.
+      KAFKA_NUM_PARTITIONS: 12
+      # Persist data: topics and messages survive `docker compose down` (only `down -v` deletes them).
+      # The image's default log dir is under /tmp; /var/lib/kafka/data exists in the image and is owned by its user.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # Fixed cluster id, so the stored data always matches the broker (generated with kafka-storage.sh random-uuid)
+      CLUSTER_ID: 5G8WsRngSW6NQ_d0bG3-cw
+    volumes:
+      - kafka-data:/var/lib/kafka/data
 
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest
@@ -116,5 +125,6 @@ services:
 # See "Set up Postgres" in README.md.
 
 volumes:
+  kafka-data:
   cassandra-data:
   grafana-data:
