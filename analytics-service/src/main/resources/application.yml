@@ -38,6 +38,21 @@ management:
       show-details: always
 
 app:
+  # Change data capture of the users table in your local Postgres (Debezium, logical replication).
+  # Requires scripts/setup-postgres-cdc.sql + a Postgres restart once. Override with env vars, e.g. APP_CDC_PASSWORD.
+  cdc:
+    enabled: true
+    host: localhost
+    port: 5432
+    database: orders
+    user: ${DB_USERNAME:orders}
+    password: ${DB_PASSWORD:orders}
+    publication: analytics_users
+    slot: analytics_users
+    table: public.users
+    # Outside the project, so it's the same whether started from IntelliJ or Maven. Delete it to re-snapshot.
+    offset-file: ${user.home}/.kafka-orders/analytics/debezium-offsets.dat
+
   topics:
     # Consumed (published by order-service and payment-service)
     orders-created: orders.created

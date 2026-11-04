@@ -23,30 +23,40 @@ public class AnalyticsPublisher {
     private final KafkaTemplate<String, String> kafka;
     private final ObjectMapper json;
     private final String ordersTopic;
+    private final String usersTopic;
 
     public AnalyticsPublisher(KafkaTemplate<String, String> kafka, ObjectMapper json,
-                              @Value("${app.topics.orders-raw}") String ordersTopic) {
+                              @Value("${app.topics.orders-raw}") String ordersTopic,
+                              @Value("${app.topics.users-raw}") String usersTopic) {
         this.kafka = kafka;
         this.json = json;
         this.ordersTopic = ordersTopic;
+        this.usersTopic = usersTopic;
     }
 
     /** Key = order id, so all facts for one order land on the same partition, in order. */
     public void publish(OrderFactEvent fact) {
-        send(ordersTopic, fact.order().id(), fact);
+        try {
+            send(ordersTopic, fact.order().id(), json.writeValueAsString(fact));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Could not serialize " + fact, e);
+        }
         log.debug("Published {} fact for order {} (eventId {})", fact.kind(), fact.order().id(), fact.eventId());
     }
 
-    private void send(String topic, String key, Object value) {
+    /** A user change, already JSON (Debezium envelope). Key = user id, so each user's changes stay in order. */
+    public void publishUserChange(String userId, String changeJson) {
+        send(usersTopic, userId, changeJson);
+    }
+
+    private void send(String topic, String key, String value) {
         try {
-            kafka.send(topic, key, json.writeValueAsString(value)).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Could not serialize " + value, e);
+            kafka.send(topic, key, value).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while publishing to " + topic, e);
         } catch (ExecutionException | TimeoutException e) {
-            // Rethrow so the listener fails and Kafka redelivers the source event (nothing is silently lost)
+            // Rethrow so the caller fails and the source is redelivered (nothing is silently lost)
             throw new IllegalStateException("Publishing to " + topic + " failed", e);
         }
     }

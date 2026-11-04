@@ -5,8 +5,13 @@ spring:
       auto-create: false      # don't create topics on startup
     listener:
       auto-startup: false     # don't consume real events
+  # (app.cdc.enabled=false below: no Debezium engine in tests)
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.cassandra.CassandraAutoConfiguration
       - org.springframework.boot.autoconfigure.data.cassandra.CassandraDataAutoConfiguration
       - org.springframework.boot.autoconfigure.data.cassandra.CassandraRepositoriesAutoConfiguration
+
+app:
+  cdc:
+    enabled: false          # no Debezium engine in tests
