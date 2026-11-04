@@ -1,32 +1,33 @@
 package com.example.orders.domain;
 
-import jakarta.persistence.*;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
+import org.springframework.data.cassandra.core.mapping.Table;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "orders")
+/**
+ * Stored in the Cassandra table orders.orders. Column types: BigDecimal -> decimal,
+ * Instant -> timestamp, OrderStatus -> text (the enum name).
+ */
+@Table("orders")
 public class Order {
 
-    @Id
+    @PrimaryKey
     private String id;
 
     private String customerId;
     private String item;
     private int quantity;
     private BigDecimal totalPrice;
-
-    @Enumerated(EnumType.STRING)
     private OrderStatus status;
-
     private String statusReason;
     private Instant createdAt;
     private Instant updatedAt;
 
     protected Order() {
-        // for JPA
+        // for Spring Data
     }
 
     public Order(String customerId, String item, int quantity, BigDecimal totalPrice) {

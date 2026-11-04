@@ -1,18 +1,20 @@
 server:
   port: 8081
+  error:
+    # Include which field failed @Valid in 400 responses (the UI shows it)
+    include-binding-errors: always
+    # Include the reason from ResponseStatusException (e.g. idempotency 409/422) in error responses
+    include-message: always
 
 spring:
   application:
     name: order-service
 
-  datasource:
-    url: jdbc:h2:mem:orders
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-  h2:
-    console:
-      enabled: true   # http://localhost:8081/h2-console  (JDBC URL: jdbc:h2:mem:orders)
+  cassandra:
+    contact-points: localhost:9042
+    local-datacenter: datacenter1      # default datacenter name of the cassandra Docker image
+    keyspace-name: orders              # created by the cassandra-init container
+    schema-action: create-if-not-exists   # creates the orders table from the Order class
 
   kafka:
     bootstrap-servers: localhost:9092

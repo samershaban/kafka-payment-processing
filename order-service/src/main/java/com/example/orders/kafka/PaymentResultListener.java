@@ -9,7 +9,6 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class PaymentResultListener {
@@ -23,7 +22,6 @@ public class PaymentResultListener {
     }
 
     @KafkaListener(topics = "${app.topics.payment-processed}")
-    @Transactional
     public void onPaymentProcessed(@Payload PaymentProcessedEvent event,
                                    @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                    @Header(KafkaHeaders.OFFSET) long offset) {
@@ -36,6 +34,8 @@ public class PaymentResultListener {
             } else {
                 order.markPaymentFailed(event.reason());
             }
+            // Cassandra has no change tracking (unlike JPA), so write the update explicitly.
+            orders.save(order);
             log.info("Order {} is now {}", order.getId(), order.getStatus());
         }, () -> log.warn("Payment result for unknown order {}", event.orderId()));
     }

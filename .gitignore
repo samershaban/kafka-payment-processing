@@ -3,3 +3,7 @@ target/
 *.iml
 .vscode/
 .DS_Store
+
+# order-ui
+node_modules/
+dist/

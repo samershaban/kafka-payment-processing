@@ -1,6 +1,6 @@
 package com.example.orders.domain;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.cassandra.repository.CassandraRepository;
 
-public interface OrderRepository extends JpaRepository<Order, String> {
+public interface OrderRepository extends CassandraRepository<Order, String> {
 }

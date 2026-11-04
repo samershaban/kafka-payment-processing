@@ -32,3 +32,39 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
       - kafka
+
+  cassandra:
+    image: cassandra:5.0
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      # Keep memory use low for a laptop
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 100M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    healthcheck:
+      # Cassandra takes ~30-60s to boot; it's healthy once cqlsh can connect
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  # One-shot job: Spring Boot can create tables, but not the keyspace, so we create it here.
+  cassandra-init:
+    image: cassandra:5.0
+    container_name: cassandra-init
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    entrypoint:
+      - cqlsh
+      - cassandra
+      - -e
+      - "CREATE KEYSPACE IF NOT EXISTS orders WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
+    restart: "no"
+
+volumes:
+  cassandra-data:
