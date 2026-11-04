@@ -38,11 +38,17 @@ BEGIN
     ALTER PUBLICATION analytics_users OWNER TO orders;
 END $$;
 
--- 4. Status. wal_level shows "replica" until Postgres has been restarted.
+-- 4. Log the complete old row on UPDATE/DELETE (not just the primary key), so change events carry a full
+--    "before" image: e.g. enrolled false -> true, and deletes show what was deleted. Small extra WAL; users is small.
+ALTER TABLE public.users REPLICA IDENTITY FULL;
+
+-- 5. Status. wal_level shows "replica" until Postgres has been restarted.
 SELECT
     current_setting('wal_level')                                              AS wal_level,
     CASE WHEN current_setting('wal_level') = 'logical'
          THEN 'ready' ELSE 'restart Postgres, then run this script again' END AS next_step,
     (SELECT rolreplication FROM pg_roles WHERE rolname = 'orders')            AS orders_can_replicate,
     (SELECT string_agg(schemaname || '.' || tablename, ', ')
-       FROM pg_publication_tables WHERE pubname = 'analytics_users')          AS published_tables;
+       FROM pg_publication_tables WHERE pubname = 'analytics_users')          AS published_tables,
+    (SELECT CASE relreplident WHEN 'f' THEN 'full' WHEN 'd' THEN 'default' ELSE relreplident::text END
+       FROM pg_class WHERE oid = 'public.users'::regclass)                    AS users_replica_identity;
