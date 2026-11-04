@@ -21,6 +21,17 @@ export interface Order {
   updatedAt: string
 }
 
+// Mirrors UserResponse.java (users are stored in Postgres; Order.customerId = User.id)
+export interface User {
+  id: string
+  name: string
+  email: string
+  company: string | null
+  address: string | null
+  timezone: string
+  enrolled: boolean
+}
+
 /** Thrown for non-2xx responses; fieldErrors is filled for @Valid failures (400). */
 export class ApiError extends Error {
   status: number
@@ -75,4 +86,8 @@ export function getOrder(id: string): Promise<Order> {
 
 export function listOrders(): Promise<Order[]> {
   return request<Order[]>('/orders')
+}
+
+export function listUsers(): Promise<User[]> {
+  return request<User[]>('/users')
 }

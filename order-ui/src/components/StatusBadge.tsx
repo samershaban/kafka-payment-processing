@@ -1,4 +1,4 @@
-import type { OrderStatus } from './api'
+import type { OrderStatus } from '../api'
 
 const LABELS: Record<OrderStatus, string> = {
   CREATED: 'Created',

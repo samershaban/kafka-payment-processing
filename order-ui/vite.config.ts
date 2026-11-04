@@ -11,6 +11,7 @@ export default defineConfig({
       // The browser only talks to localhost:5175; Vite forwards API calls to the Order Service.
       // That's why the Order Service doesn't need any CORS config.
       '/orders': 'http://localhost:8081',
+      '/users': 'http://localhost:8081',
     },
   },
 })

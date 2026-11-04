@@ -1,6 +1,6 @@
 package com.example.orders.kafka;
 
-import com.example.orders.domain.Order;
+import com.example.orders.model.Order;
 import com.example.orders.events.OrderCreatedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

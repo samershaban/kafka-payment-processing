@@ -7,3 +7,6 @@ target/
 # order-ui
 node_modules/
 dist/
+
+# Local planning notes (not pushed)
+webhook-plan.md

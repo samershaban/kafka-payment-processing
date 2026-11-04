@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ApiError, getOrder, listOrders, type Order } from './api'
-import { OrderForm } from './OrderForm'
-import { OrderList } from './OrderList'
-import { StatusBadge } from './StatusBadge'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ApiError, getOrder, listOrders, listUsers, type Order, type User } from './api'
+import { OrderForm } from './components/OrderForm'
+import { OrderList } from './components/OrderList'
 
 const POLL_MS = 500
 const POLL_TIMEOUT_MS = 10_000
@@ -29,6 +28,19 @@ export default function App() {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Users: options for the form's Customer dropdown, and names for the orders table
+  const [users, setUsers] = useState<User[]>([])
+  const [usersError, setUsersError] = useState<string | null>(null)
+  useEffect(() => {
+    listUsers()
+      .then((list) => {
+        setUsers([...list].sort((a, b) => a.name.localeCompare(b.name)))
+        setUsersError(list.length === 0 ? 'No users yet. Add one with POST /users to place orders.' : null)
+      })
+      .catch((err) => setUsersError(err instanceof ApiError ? err.message : 'Could not load users.'))
+  }, [])
+  const userNames = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
 
   // After creating an order, poll it until the Payment Service's result arrives via Kafka.
   const latestId = latest?.id
@@ -66,32 +78,11 @@ export default function App() {
     <main>
       <header>
         <h1>Orders</h1>
-        <p className="muted">
-          Place an order. The Order Service saves it and publishes it to Kafka, the Payment Service charges it, and the
-          status updates here.
-        </p>
       </header>
 
-      <OrderForm onCreated={handleCreated} />
+      <OrderForm users={users} usersError={usersError} onCreated={handleCreated} />
 
-      {latest && (
-        <section className="card latest" aria-live="polite">
-          <div>
-            <strong>{latest.item}</strong> × {latest.quantity} for {latest.customerId}
-            <div className="muted small mono">{latest.id}</div>
-          </div>
-          <div className="latest-status">
-            <StatusBadge status={latest.status} />
-            {latest.status === 'CREATED' && !timedOut && <span className="muted small">Waiting for payment…</span>}
-            {timedOut && latest.status === 'CREATED' && (
-              <span className="muted small">No payment result yet. Is the Payment Service running?</span>
-            )}
-            {latest.statusReason && <span className="muted small">{latest.statusReason}</span>}
-          </div>
-        </section>
-      )}
-
-      <OrderList orders={orders} loading={loading} error={listError} onRefresh={refresh} />
+      <OrderList orders={orders} userNames={userNames} loading={loading} error={listError} onRefresh={refresh} />
     </main>
   )
 }

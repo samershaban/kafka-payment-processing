@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from 'react'
-import { ApiError, createOrder, type CreateOrderRequest, type Order } from './api'
-import { randomOrder } from './orderGenerator'
+import { ApiError, createOrder, type CreateOrderRequest, type Order, type User } from '../api'
+import { randomOrder } from '../utils/orderGenerator'
 
 type Fields = { customerId: string; item: string; quantity: string; totalPrice: string }
 
@@ -9,7 +9,7 @@ const EMPTY: Fields = { customerId: '', item: '', quantity: '1', totalPrice: '' 
 // Same rules as CreateOrderRequest.java (@NotBlank, @Min(1), @NotNull @DecimalMin("0.01"))
 function validate(f: Fields): Record<string, string> {
   const errors: Record<string, string> = {}
-  if (!f.customerId.trim()) errors.customerId = 'Required'
+  if (!f.customerId.trim()) errors.customerId = 'Select a customer'
   if (!f.item.trim()) errors.item = 'Required'
   const qty = Number(f.quantity)
   if (!Number.isInteger(qty) || qty < 1) errors.quantity = 'Must be a whole number, at least 1'
@@ -18,7 +18,16 @@ function validate(f: Fields): Record<string, string> {
   return errors
 }
 
-export function OrderForm({ onCreated }: { onCreated: (order: Order) => void }) {
+export function OrderForm({
+  users,
+  usersError,
+  onCreated,
+}: {
+  /** Existing users (loaded by App), sorted by name: the Customer options and the pool for random orders */
+  users: User[]
+  usersError: string | null
+  onCreated: (order: Order) => void
+}) {
   const [fields, setFields] = useState<Fields>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -27,12 +36,17 @@ export function OrderForm({ onCreated }: { onCreated: (order: Order) => void }) 
   // Retrying the same order reuses the key, so the server can't create it twice.
   const pending = useRef<{ key: string; body: string } | null>(null)
 
-  const set = (name: keyof Fields) => (e: ChangeEvent<HTMLInputElement>) =>
+  const set = (name: keyof Fields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setFields({ ...fields, [name]: e.target.value })
 
+
   // Fill every field with a generated order; you can still edit it before submitting
-  function fillRandom(): Fields {
-    const r = randomOrder()
+  function fillRandom(): Fields | null {
+    if (users.length === 0) {
+      setFormError(usersError ?? 'No users to pick from.')
+      return null
+    }
+    const r = randomOrder(users)
     const filled: Fields = {
       customerId: r.customerId,
       item: r.item,
@@ -52,7 +66,8 @@ export function OrderForm({ onCreated }: { onCreated: (order: Order) => void }) 
 
   // Generate a random order, show it in the fields, and submit it right away
   function placeRandom() {
-    submit(fillRandom())
+    const filled = fillRandom()
+    if (filled) submit(filled)
   }
 
   // Takes the values explicitly: after fillRandom() the `fields` state isn't updated until the next render
@@ -114,12 +129,48 @@ export function OrderForm({ onCreated }: { onCreated: (order: Order) => void }) 
     <form className="card" onSubmit={handleSubmit} noValidate>
       <div className="card-header">
         <h2>New order</h2>
-        <button type="button" className="secondary" onClick={fillRandom} disabled={submitting}>
+        <button type="button" className="secondary" onClick={() => fillRandom()} disabled={submitting || users.length === 0}>
           Random order
         </button>
       </div>
+      {usersError && <p className="muted small">{usersError}</p>}
       <div className="grid">
-        {field('customerId', 'Customer ID', { placeholder: 'c-1' })}
+        <label className="field">
+          <span>Customer</span>
+          <select
+            name="customerId"
+            value={fields.customerId}
+            onChange={set('customerId')}
+            aria-invalid={!!errors.customerId}
+            disabled={submitting || users.length === 0}
+          >
+            <option value="">{users.length === 0 ? 'No users available' : 'Select a user…'}</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.email})
+              </option>
+            ))}
+          </select>
+          {errors.customerId && <small className="error">{errors.customerId}</small>}
+          {/* The id that is sent as customerId. Always rendered (empty when nothing is selected) so it reserves its line.
+              The line is cut with "…" when narrow; hovering (or focusing/tapping) shows the full id immediately. */}
+          <span
+            className="uuid-hint"
+            tabIndex={fields.customerId ? 0 : undefined}
+            // Inside a <label>, a click would move focus to the dropdown and hide the tooltip on touch screens
+            onClick={(e) => e.preventDefault()}
+          >
+            <small className="selected-user muted mono" aria-live="polite">
+              UUID:{fields.customerId}
+            </small>
+            {fields.customerId && (
+              // Same text and classes as the line above, so it lines up exactly on top of it
+              <small className="uuid-tooltip muted mono" role="tooltip">
+                UUID:{fields.customerId}
+              </small>
+            )}
+          </span>
+        </label>
         {field('item', 'Item', { placeholder: 'Margherita pizza' })}
         {field('quantity', 'Quantity', { type: 'number', min: 1, step: 1 })}
         {field('totalPrice', 'Total price', { type: 'number', min: 0.01, step: 0.01, placeholder: '24.50' })}
@@ -129,7 +180,7 @@ export function OrderForm({ onCreated }: { onCreated: (order: Order) => void }) 
         <button type="submit" disabled={submitting}>
           {submitting ? 'Placing…' : 'Place order'}
         </button>
-        <button type="button" className="secondary" onClick={placeRandom} disabled={submitting}>
+        <button type="button" className="secondary" onClick={placeRandom} disabled={submitting || users.length === 0}>
           Place random order
         </button>
       </div>

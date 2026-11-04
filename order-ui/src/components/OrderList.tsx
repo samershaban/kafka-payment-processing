@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Order } from './api'
+import type { Order } from '../api'
 import { StatusBadge } from './StatusBadge'
 
 const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' })
@@ -9,11 +9,14 @@ const PAGE_SIZES = [5, 10, 0]
 
 export function OrderList({
   orders,
+  userNames,
   loading,
   error,
   onRefresh,
 }: {
   orders: Order[]
+  /** user id -> name, to show customers by name instead of their UUID */
+  userNames: Map<string, string>
   loading: boolean
   error: string | null
   onRefresh: () => void
@@ -56,7 +59,9 @@ export function OrderList({
               {visible.map((o) => (
                 <tr key={o.id}>
                   <td title={o.id}>{new Date(o.createdAt).toLocaleString()}</td>
-                  <td>{o.customerId}</td>
+                  <td title={o.customerId}>
+                    {userNames.get(o.customerId) ?? <span className="muted">Unknown user</span>}
+                  </td>
                   <td>{o.item}</td>
                   <td className="num">{o.quantity}</td>
                   <td className="num">{money.format(o.totalPrice)}</td>

@@ -16,6 +16,17 @@ spring:
     keyspace-name: orders              # created by the cassandra-init container
     schema-action: create-if-not-exists   # creates the orders table from the Order class
 
+  # Users live in a Postgres installed on your computer (see "Set up Postgres" in README.md).
+  # Override with environment variables, e.g. DB_PASSWORD=secret, instead of editing this file.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/orders}
+    username: ${DB_USERNAME:orders}
+    password: ${DB_PASSWORD:orders}
+  jpa:
+    hibernate:
+      ddl-auto: validate   # Flyway owns the schema (db/migration); Hibernate only checks the entities match it
+    open-in-view: false
+
   kafka:
     bootstrap-servers: localhost:9092
     producer:

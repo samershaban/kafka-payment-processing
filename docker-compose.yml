@@ -66,5 +66,34 @@ services:
       - "CREATE KEYSPACE IF NOT EXISTS orders WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
     restart: "no"
 
+  # One-shot job: adds 5 random users (postgres/random-users.sql) to the Postgres on your computer, but only if
+  # there are none yet besides the fixed seed users. Runs on every `docker compose up` and does nothing after
+  # the first time. Needs the "orders" role/database (README step 1).
+  postgres-seed:
+    image: postgres:17-alpine
+    container_name: postgres-seed
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-orders}
+    volumes:
+      - ./postgres/random-users.sql:/seed/random-users.sql:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach your computer's Postgres (also on Linux)
+    command:
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - host.docker.internal
+      - -U
+      - ${DB_USERNAME:-orders}
+      - -d
+      - orders
+      - -f
+      - /seed/random-users.sql
+    restart: "no"
+
+# Postgres itself is NOT run here: the Order Service uses a Postgres installed on your computer.
+# See "Set up Postgres" in README.md.
+
 volumes:
   cassandra-data:
