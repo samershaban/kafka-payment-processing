@@ -220,6 +220,19 @@ Or open an interactive shell with `docker exec -it cassandra cqlsh` and try `DES
 Cassandra data is kept in the `cassandra-data` Docker volume, so it survives restarts of the services and of the
 containers. Users are in your local Postgres, independent of Docker.
 
+## Analytics setup (in progress)
+
+Preparation for a real-time analytics pipeline (capture → Kafka → Flink → S3). Nothing uses these yet.
+
+**Postgres change data capture (once).** Lets the future analytics service stream every change to `users`.
+Needs the `postgres` superuser password and a Postgres restart, which briefly disconnects all databases on it:
+
+```bash
+psql -h localhost -U postgres -d orders -f scripts/setup-postgres-cdc.sql   # sets wal_level, role, publication
+sudo launchctl kickstart -k system/postgresql-15                            # restart (EnterpriseDB on macOS)
+psql -h localhost -U postgres -d orders -f scripts/setup-postgres-cdc.sql   # again: should end with "ready"
+```
+
 ## Tests
 
 ```bash
