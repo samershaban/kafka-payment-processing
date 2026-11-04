@@ -233,6 +233,25 @@ sudo launchctl kickstart -k system/postgresql-15                            # re
 psql -h localhost -U postgres -d orders -f scripts/setup-postgres-cdc.sql   # again: should end with "ready"
 ```
 
+**Local S3 (data lake).** `docker compose up -d` also starts an S3-compatible store (RustFS) and a one-shot
+`s3-init` job that creates the bucket `kafka-orders-lake`.
+
+| | |
+|---|---|
+| S3 API endpoint | `http://localhost:9000` (from other containers: `http://s3:9000`), path-style addressing |
+| Web console | http://localhost:9001/rustfs/console/ |
+| Access key / secret key | `lakeadmin` / `lakeadmin-secret` (override with `S3_ACCESS_KEY`, `S3_SECRET_KEY`) |
+
+List the bucket with the AWS CLI in Docker:
+
+```bash
+docker run --rm --network kafka-orders_default -e AWS_ACCESS_KEY_ID=lakeadmin -e AWS_SECRET_ACCESS_KEY=lakeadmin-secret \
+  -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli:2.39.3 --endpoint-url http://s3:9000 s3 ls s3://kafka-orders-lake --recursive
+```
+
+Data is kept in the `s3-data` volume. Kafka now also keeps its data in a `kafka-data` volume, so topics and
+messages survive `docker compose down`; `docker compose down -v` deletes both.
+
 ## Tests
 
 ```bash
@@ -263,6 +282,6 @@ Unit tests for the services (Mockito) and the users web layer (`@WebMvcTest`). T
 ## Stop everything
 
 ```bash
-docker compose down        # keeps Cassandra data
-docker compose down -v     # also deletes the Cassandra volume (all orders)
+docker compose down        # keeps the data in Docker volumes (Kafka, Cassandra, S3, Grafana)
+docker compose down -v     # also deletes those volumes (all orders, Kafka topics and S3 files)
 ```
