@@ -1,6 +1,7 @@
 package com.example.analytics;
 
 import com.example.analytics.repository.OrderReadRepository;
+import com.example.analytics.repository.OrderScanner;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AnalyticsServiceApplicationTest {
 
     @Autowired TestRestTemplate http;
-    @MockitoBean OrderReadRepository orders;   // Cassandra is excluded in the test profile
+    // Cassandra is excluded in the test profile, so its beans are mocked
+    @MockitoBean OrderReadRepository orders;
+    @MockitoBean OrderScanner scanner;
 
     @Test
     void startsAndReportsHealthy() {
