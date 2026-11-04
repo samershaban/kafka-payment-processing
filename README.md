@@ -102,15 +102,19 @@ cd order-ui && npm install && npm run dev
 
 Open http://localhost:5175. Submit the form and watch the order go from `CREATED` to `PAID` or
 `PAYMENT_FAILED`. **Random order** and **Place random order** pick one of the existing users as the customer.
-The Vite dev server forwards `/orders` and `/users` to the Order Service on 8081, so no CORS setup is needed.
+The **Users** page (http://localhost:5175/users, in the top navigation) lists every user with their details and
+lets you switch **Enrolled** on or off; the change is saved straight away (`PUT /users/{id}`).
+
+The UI calls the API under `/api` (e.g. `/api/users`). The Vite dev server strips `/api` and forwards to the Order
+Service on 8081, so no CORS setup is needed, and page URLs like `/users` don't clash with API URLs.
 
 The list updates live, without polling: the page subscribes to `GET /orders/stream` (Server-Sent Events), and
 the Order Service pushes an `order` event whenever an order is created or its payment result arrives from Kafka.
-That includes orders placed with curl or in another tab. The dot next to the title shows **Live** while connected;
+That includes orders placed with curl or in another tab. The dot next to the Orders title shows **Live** while connected;
 if the connection drops, the browser reconnects by itself and the page reloads the list. Watch the raw stream with:
 
 ```bash
-curl -N http://localhost:8081/orders/stream
+curl -N http://localhost:8081/orders/stream    # or via the UI: http://localhost:5175/api/orders/stream
 ```
 
 **Or place one with curl.** `customerId` must be an existing user's ID (otherwise `422 Unknown customer`).

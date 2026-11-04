@@ -44,10 +44,16 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+/**
+ * All API calls go to /api/... ; the Vite dev server strips /api and forwards to the Order Service (port 8081).
+ * The prefix keeps API paths apart from page paths: /users is the Users page, /api/users is the API.
+ */
+const API = '/api'
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
-    res = await fetch(url, init)
+    res = await fetch(API + path, init)
   } catch {
     throw new ApiError('Cannot reach the Order Service. Is it running on port 8081?', 0)
   }
@@ -64,7 +70,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // e.g. for 409/422 idempotency errors
     const message =
       res.status === 400 && Object.keys(fieldErrors).length > 0
-        ? 'The server rejected the order.'
+        ? 'The server rejected the request.'
         : body?.message || `Request failed (${res.status} ${body?.error ?? res.statusText})`
     throw new ApiError(message, res.status, fieldErrors)
   }
@@ -92,6 +98,17 @@ export function listUsers(): Promise<User[]> {
   return request<User[]>('/users')
 }
 
+// Mirrors UpdateUserRequest.java: PUT replaces the whole user, so every field is sent
+export type UpdateUserRequest = Omit<User, 'id'>
+
+export function updateUser(id: string, req: UpdateUserRequest): Promise<User> {
+  return request<User>(`/users/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
 /**
  * Live order updates (Server-Sent Events). Calls onOrder with the order's current state whenever an order is
  * created or its status changes, from this browser or anywhere else (curl, Postman, another tab).
@@ -102,7 +119,7 @@ export function subscribeToOrders(
   onOrder: (order: Order) => void,
   onStatus: (connected: boolean) => void,
 ): () => void {
-  const source = new EventSource('/orders/stream')
+  const source = new EventSource(`${API}/orders/stream`)
   source.addEventListener('order', (e) => onOrder(JSON.parse((e as MessageEvent<string>).data) as Order))
   source.onopen = () => onStatus(true)
   source.onerror = () => onStatus(false) // EventSource retries automatically after an error
