@@ -1,2 +1,3 @@
 # SQL files run by AnalyticsSqlJob, in this order (paths relative to sql/).
 raw-orders.sql
+raw-users.sql
