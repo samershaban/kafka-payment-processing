@@ -222,8 +222,8 @@ containers. Users are in your local Postgres, independent of Docker.
 
 ## Analytics setup (in progress)
 
-A real-time analytics pipeline: capture → Kafka → Flink → S3. The capture part (`analytics-service`) is in place;
-Flink and the S3 layers come next.
+A real-time analytics pipeline: capture → Kafka → Flink → S3. Capture (`analytics-service`) and the raw layer in
+S3 (`analytics-flink`) are in place; the silver layer and ClickHouse come next.
 
 **Postgres change data capture (once).** Lets `analytics-service` stream every change to `users`.
 Needs the `postgres` superuser password and a Postgres restart, which briefly disconnects all databases on it:
@@ -277,11 +277,50 @@ curl -X POST localhost:8083/admin/backfill             # once: publish orders th
 - `eventId` is deterministic, so the same source event always gets the same id and duplicates (from redelivery,
   restarts or a repeated backfill) can be dropped downstream.
 
+**Flink: raw topics → S3 (`analytics-flink`).** A Flink SQL job copies both raw topics into the lake as Parquet,
+partitioned by UTC date and hour. Files are committed on each checkpoint (every 10 s), exactly once.
+
+| Topic | S3 path | Rows |
+|---|---|---|
+| `analytics.orders.raw` | `raw/orders/dt=YYYY-MM-DD/hour=HH/part-*` | one per order fact, `order` fields flattened into columns |
+| `analytics.users.raw` | `raw/users/dt=YYYY-MM-DD/hour=HH/part-*` | one per user change; `before` / `after` kept as structs |
+
+```bash
+(cd analytics-flink && mvn package)    # builds target/analytics-flink.jar
+docker compose up -d                   # starts the Flink cluster; flink-submit deploys the jar if it isn't running
+```
+
+Flink UI: http://localhost:8084 (job `analytics-lake`, its checkpoints and any errors). The SQL is in
+`analytics-flink/src/main/resources/sql/`, run in the order listed in `pipeline.txt`.
+
+Read the files with DuckDB (`INSTALL httpfs; LOAD httpfs;` first):
+
+```sql
+CREATE SECRET lake (TYPE s3, KEY_ID 'lakeadmin', SECRET 'lakeadmin-secret', ENDPOINT 'localhost:9000',
+                    URL_STYLE 'path', USE_SSL false, REGION 'us-east-1');
+SELECT kind, status, count(*) FROM read_parquet('s3://kafka-orders-lake/raw/orders/*/*/part-*') GROUP BY ALL;
+```
+
+Stopping and upgrading the job:
+
+- **Pause / resume:** `docker exec flink-jobmanager flink stop -p <job-id>` prints a savepoint path; resume with
+  `RESTORE_FROM=<that path> docker compose up flink-submit`. Nothing is lost or duplicated.
+- **After changing the SQL** (e.g. a new pipeline), the old savepoint usually doesn't fit the new job. Stop it
+  with a savepoint anyway (that commits its Kafka offsets), then start fresh with `docker compose up flink-submit`:
+  existing pipelines continue from the offsets committed to the `analytics-flink` consumer group, new ones read
+  their topic from the beginning.
+- **Crashes** (e.g. a taskmanager dies) are handled by Flink itself: it restarts from the last checkpoint.
+- There's no Flink high availability: recreating the `flink-jobmanager` container forgets the running job.
+  `docker compose up` resubmits it, continuing from the committed Kafka offsets.
+- Checkpoints of cancelled jobs are kept under `s3://kafka-orders-lake/flink/checkpoints/<job-id>/`; delete old
+  ones when you no longer need them.
+
 ## Tests
 
 ```bash
 cd order-service && mvn test
 cd analytics-service && mvn test
+cd analytics-flink && mvn test
 ```
 
 Unit tests for the services (Mockito) and the users web layer (`@WebMvcTest`). They don't need Docker.
