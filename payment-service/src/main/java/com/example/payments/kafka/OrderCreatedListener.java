@@ -41,8 +41,8 @@ public class OrderCreatedListener {
                                @Header(KafkaHeaders.OFFSET) long offset) throws InterruptedException {
         log.info("Charging {} for order {} (partition {}, offset {})",
                 order.totalPrice(), order.orderId(), partition, offset);
-
-        Thread.sleep(delayMs); // simulate calling a payment provider
+        int randomDelay = (int)(Math.random()*800)-300; // random delay between -300 and +500 ms
+        Thread.sleep(delayMs+randomDelay); // simulate calling a payment provider
 
         boolean success = ThreadLocalRandom.current().nextDouble() >= failureRate;
         var result = new PaymentProcessedEvent(
