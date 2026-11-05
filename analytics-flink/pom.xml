@@ -17,6 +17,8 @@
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <flink.version>1.20.5</flink.version>
+        <flink.kafka.version>3.4.0-1.20</flink.kafka.version>
+        <hadoop.version>3.3.6</hadoop.version>
         <junit.version>5.11.4</junit.version>
     </properties>
 
@@ -27,6 +29,49 @@
             <artifactId>flink-table-api-java</artifactId>
             <version>${flink.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- Bundled in the job jar: connector and format (the "sql-" variants are self-contained) -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-sql-connector-kafka</artifactId>
+            <version>${flink.kafka.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-sql-parquet</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <!--
+          The Parquet writer needs Hadoop's Configuration class, which neither Flink nor flink-sql-parquet ship
+          (the S3 plugin's copy is isolated in its own classloader). Only the core classes are bundled.
+        -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>${hadoop.version}</version>
+            <exclusions>
+                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-mapreduce-client-core</artifactId>
+            <version>${hadoop.version}</version>
+            <exclusions>
+                <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <!-- What Hadoop's Configuration needs at runtime (its XML parser for core-default.xml) -->
+        <dependency>
+            <groupId>com.fasterxml.woodstox</groupId>
+            <artifactId>woodstox-core</artifactId>
+            <version>5.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop.thirdparty</groupId>
+            <artifactId>hadoop-shaded-guava</artifactId>
+            <version>1.1.1</version>
         </dependency>
 
         <dependency>

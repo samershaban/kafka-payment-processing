@@ -29,6 +29,7 @@ final class SqlScripts {
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("job.name", "analytics-lake");
         vars.put("checkpoint.interval", "10s");
+        vars.put("parallelism", "4");   // = slots of one taskmanager; 12 (= partitions) with 3 taskmanagers
         vars.put("kafka.bootstrap", "kafka:29092");
         vars.put("kafka.group", "analytics-flink");
         vars.put("topic.orders", "analytics.orders.raw");
