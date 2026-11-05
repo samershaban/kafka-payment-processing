@@ -189,8 +189,7 @@ services:
         state.backend.type: rocksdb
         state.checkpoints.dir: s3://${S3_BUCKET:-kafka-orders-lake}/flink/checkpoints
         state.savepoints.dir: s3://${S3_BUCKET:-kafka-orders-lake}/flink/savepoints
-        execution.checkpointing.interval: 10s
-        execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+        # The checkpoint interval is a job setting: see AnalyticsSqlJob
     depends_on:
       s3:
         condition: service_healthy
@@ -201,6 +200,22 @@ services:
     environment: *flink-env
     depends_on:
       - flink-jobmanager
+
+  # One-shot job: submits the analytics-flink jar (build it first: cd analytics-flink && mvn package).
+  # Skips if the job is already running. See flink/submit.sh for restoring from a savepoint.
+  flink-submit:
+    image: flink:1.20.5-java17
+    container_name: flink-submit
+    entrypoint: ["/bin/sh", "/submit.sh"]
+    environment:
+      RESTORE_FROM: ${RESTORE_FROM:-}
+    volumes:
+      - ./flink/submit.sh:/submit.sh:ro
+      - ./analytics-flink/target:/jobs:ro
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
+    restart: "no"
 
 # Postgres itself is NOT run here: the Order Service uses a Postgres installed on your computer.
 # See "Set up Postgres" in README.md.

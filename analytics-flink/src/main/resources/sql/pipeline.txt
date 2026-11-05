@@ -1,0 +1,2 @@
+# SQL files run by AnalyticsSqlJob, in this order (paths relative to sql/).
+heartbeat.sql

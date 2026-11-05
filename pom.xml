@@ -13,5 +13,6 @@
         <module>order-service</module>
         <module>payment-service</module>
         <module>analytics-service</module>
+        <module>analytics-flink</module>
     </modules>
 </project>
