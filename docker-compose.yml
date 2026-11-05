@@ -164,6 +164,44 @@ services:
         || aws --endpoint-url http://s3:9000 s3 mb "s3://$$S3_BUCKET"
     restart: "no"
 
+  # Flink cluster for the analytics pipeline (raw Kafka topics → S3). Web UI: http://localhost:8084
+  # The jobmanager coordinates (schedules jobs, triggers checkpoints); taskmanagers run the work.
+  # More capacity: docker compose up -d --scale flink-taskmanager=3 (4 slots each).
+  flink-jobmanager:
+    image: flink:1.20.5-java17
+    container_name: flink-jobmanager
+    command: jobmanager
+    ports:
+      - "8084:8081"   # 8081 is order-service
+    environment: &flink-env
+      # S3 filesystem plugin ships in the image; this copies it into plugins/ at startup
+      ENABLE_BUILT_IN_PLUGINS: flink-s3-fs-hadoop-1.20.5.jar
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 1024m
+        taskmanager.memory.process.size: 1536m
+        taskmanager.numberOfTaskSlots: 4
+        parallelism.default: 4
+        s3.endpoint: http://s3:9000
+        s3.path.style.access: true
+        s3.access-key: ${S3_ACCESS_KEY:-lakeadmin}
+        s3.secret-key: ${S3_SECRET_KEY:-lakeadmin-secret}
+        state.backend.type: rocksdb
+        state.checkpoints.dir: s3://${S3_BUCKET:-kafka-orders-lake}/flink/checkpoints
+        state.savepoints.dir: s3://${S3_BUCKET:-kafka-orders-lake}/flink/savepoints
+        execution.checkpointing.interval: 10s
+        execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+    depends_on:
+      s3:
+        condition: service_healthy
+
+  flink-taskmanager:
+    image: flink:1.20.5-java17
+    command: taskmanager
+    environment: *flink-env
+    depends_on:
+      - flink-jobmanager
+
 # Postgres itself is NOT run here: the Order Service uses a Postgres installed on your computer.
 # See "Set up Postgres" in README.md.
 
